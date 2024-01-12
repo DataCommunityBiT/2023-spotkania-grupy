@@ -1,0 +1,82 @@
+# databricks or synapse analytics notebook 
+
+import hashlib
+import datetime
+import pandas as pd
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+# path to your Azure Storage account
+output_path = 'abfss://<container>@<account>/<path>'
+
+schema = StructType([
+			StructField("AREA", StringType(), True),
+			StructField("CODE", StringType(), True),
+			StructField("DEADLINE", StringType(), True)
+        ])
+		
+		
+# Generate data
+def generate_data(num_rows: int, area_value: str, hash_length: int) -> pd.DataFrame: 
+	data = []
+
+	for i in range(num_rows):
+		# Generate hash for "CODE" column
+		code_hash = hashlib.sha256(str(i).encode()).hexdigest()[:hash_length]
+
+		# Generate date for "DEADLINE" column
+		deadline_date = (datetime.datetime.now() + datetime.timedelta(days=i)).strftime(\"%Y-%m-%d\")
+
+		# Append the row to the data list
+		data.append((area_value, code_hash, deadline_date))
+
+	# Create a DataFrame
+	df = spark.createDataFrame(data, schema)
+
+	rwturn df
+	
+# CSV
+df = generate_data(10, "CSV-Code", 8)
+display(df)
+df.coalesce(1).write.mode("overwrite").csv(f"{output_path}/data.csv")
+  
+# JSON
+df = generate_data(10, "JSON-Code", 16)
+display(df)
+df.coalesce(1).write.mode("overwrite").json(f"{output_path}/data.json")
+  
+# Parquet
+df = generate_data(10, "Parquet-Code", 14)
+display(df)
+df.write.mode("overwrite").parquet(f"{output_path}/data.parquet")
+ 
+# ORC
+df = generate_data(10, "ORC-Code", 10)
+display(df)
+df.write.mode("overwrite").orc(f"{output_path}/data.orc")
+   
+# Avro
+df = generate_data(10, "Avro-Code", 12)
+display(df)
+df.write.mode("overwrite").format("avro").save(f"{output_path}/data.avro")
+  
+
+# Load data 
+df_from_csv = spark.read.csv(f"{output_path}/data.csv")
+df_from_json = spark.read.json(f"{output_path}/data.json")
+df_from_parquet = spark.read.parquet(f"{output_path}/data.parquet")
+df_from_orc = spark.read.orc(f"{output_path}/data.orc")
+df_from_avro = spark.read.format("avro").load(f"{output_path}/data.avro")
+      
+data = []
+combined_df = spark.createDataFrame(data, schema)
+display(combined_df)
+      
+combined_df = combined_df.union(df_from_csv) \
+                         .union(df_from_json) \
+                         .union(df_from_parquet) \
+                         .union(df_from_orc) \
+                         .union(df_from_avro) 
+
+display(combined_df)
+   
+ 
